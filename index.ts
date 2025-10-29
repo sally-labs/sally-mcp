@@ -1,10 +1,3 @@
-/**
- * Need:
- * - MCP server to be able to verify token (SSE should be able to do this)
- * - Need client to be able to send header
- * - Each client application would need to implement a wallet type
- */
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import axios from 'axios';
@@ -13,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { Hex } from 'viem';
 import { withPaymentInterceptor } from 'x402-axios';
 import { z } from 'zod';
+
 config();
 
 const privateKey = process.env.PRIVATE_KEY as Hex;
@@ -23,6 +17,7 @@ if (!privateKey || !baseURL) {
 }
 
 const account = privateKeyToAccount(privateKey);
+
 
 const api = withPaymentInterceptor(axios.create({ baseURL }), account);
 
@@ -51,7 +46,7 @@ server.tool(
             type: 'text',
             text: `Failed to fetch weather data. Error: ${
               err.response?.data?.message || err.message
-            }\n\nMake sure your wallet has sufficient USDC.`,
+            }`,
           },
         ],
       };
@@ -80,7 +75,7 @@ server.tool(
             type: 'text',
             text: `Failed to chat with Sally. Error: ${
               err.response?.data?.message || err.message
-            }\n\nMake sure your wallet has sufficient USDC.`,
+            }`,
           },
         ],
       };
