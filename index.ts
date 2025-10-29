@@ -2,24 +2,22 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import axios from 'axios';
 import { config } from 'dotenv';
+import type { Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { Hex } from 'viem';
 import { withPaymentInterceptor } from 'x402-axios';
 import { z } from 'zod';
 
 config();
 
 const privateKey = process.env.PRIVATE_KEY as Hex;
-const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 
-if (!privateKey || !baseURL) {
-  throw new Error('Missing environment variables');
+if (!privateKey) {
+  throw new Error('Missing private keys');
 }
 
 const account = privateKeyToAccount(privateKey);
 
-
-const api = withPaymentInterceptor(axios.create({ baseURL }), account);
+const api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
 
 // Create an MCP server
 export const server = new McpServer({
@@ -28,31 +26,24 @@ export const server = new McpServer({
 });
 
 // Add an addition tool
-server.tool(
-  'get-weather',
-  'Get example weather data',
-  {},
-  async () => {
-    try {
-      const res = await api.get('/weather');
-      return {
-        content: [{ type: 'text', text: JSON.stringify(res.data) }],
-      };
-    } catch (err: any) {
-      console.error(err);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to fetch weather data. Error: ${
-              err.response?.data?.message || err.message
-            }`,
-          },
-        ],
-      };
-    }
-  },
-);
+server.tool('get-weather', 'Get example weather data', {}, async () => {
+  try {
+    const res = await api.get('/weather');
+    return {
+      content: [{ type: 'text', text: JSON.stringify(res.data) }],
+    };
+  } catch (err: any) {
+    console.error(err);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Failed to fetch weather data. Error: ${err.response?.data?.message || err.message}`,
+        },
+      ],
+    };
+  }
+});
 
 server.tool(
   'chat-with-sally',
@@ -73,9 +64,7 @@ server.tool(
         content: [
           {
             type: 'text',
-            text: `Failed to chat with Sally. Error: ${
-              err.response?.data?.message || err.message
-            }`,
+            text: `Failed to chat with Sally. Error: ${err.response?.data?.message || err.message}`,
           },
         ],
       };
