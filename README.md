@@ -174,6 +174,7 @@ Once configured, you can interact with Sally directly through your MCP client us
 <br>
 <br>
 The MCP server will automatically handle x402 payments for each interaction using your dedicated wallet.  
+
 **Note:** The exact phrasing to trigger the tool may vary by MCP client. Refer to your client's documentation for specific syntax.  
 
 ## Understanding x402 Payments
