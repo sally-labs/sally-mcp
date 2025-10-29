@@ -1,10 +1,15 @@
 ##  How to Use Locally in Claude Desktop
+*Pre-req:* 
+- pnpm
+- node
+- private key from your crypto wallet
+
 1. Download Claude for Desktop
 2. Go to Settings > Developer > Local MCP Servers > Edit Config
 3. Use this setting for `claude-desktop-config.json`
 ```{
   "mcpServers": {
-    "sally": {
+    "ask-sally": {
       "command": "pnpm",
       "args": [
         "--silent",

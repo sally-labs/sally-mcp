@@ -51,7 +51,7 @@ server.tool(
             type: 'text',
             text: `Failed to fetch weather data. Error: ${
               err.response?.data?.message || err.message
-            }\n\nMake sure the Express server is running and your wallet has testnet USDC.`,
+            }\n\nMake sure your wallet has sufficient USDC.`,
           },
         ],
       };
@@ -80,7 +80,7 @@ server.tool(
             type: 'text',
             text: `Failed to chat with Sally. Error: ${
               err.response?.data?.message || err.message
-            }\n\nMake sure the Express server is running and your wallet has testnet USDC.`,
+            }\n\nMake sure your wallet has sufficient USDC.`,
           },
         ],
       };
