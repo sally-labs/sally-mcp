@@ -34,8 +34,6 @@ If you don't have pnpm installed:
 npm install -g pnpm
 ```
 
-<br>
-<br>
 
 ## Installation
 
@@ -95,9 +93,7 @@ For Claude Desktop
 }
 ```
 
-<br>
-<br>
-For Cursor  
+**For Cursor**  
 
 1. Open Cursor
 2. Navigate to **Settings → Features → MCP Servers**
@@ -168,7 +164,7 @@ Once configured, you can interact with Sally directly through your MCP client us
 ```
 
 <br>
-<br>
+
 **Using Sally's capabilities:**  
 
 ```
@@ -266,14 +262,10 @@ Each interaction with Sally through this MCP server uses x402 for micropayments:
 
 If you encounter issues or have questions:
 
-- **Documentation:** \[Link to docs\]
 - **Support Email:** [support@asksally.xyz](mailto:support@asksally.xyz)
-- **Community:** \[Link to community if applicable\]
-- **GitHub Issues:** \[Link to GitHub issues\]
+- **Community:** [https://bento.me/a1c]()
+- **GitHub Issues:** [https://github.com/sally-labs/sally-mcp/issues]()
 
-## License
-
-\[Your License Information\]
 
 * * *
 
