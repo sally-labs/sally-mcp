@@ -5,12 +5,10 @@ startCommand:
   type: http
   configSchema:
     type: object
-    required:
-      - privateKey
     properties:
       privateKey:
         type: string
-        description: Your dedicated wallet's private key for x402 payments (with 0x prefix)
+        description: Your dedicated wallet's private key for x402 payments (with 0x prefix). Optional for browsing tools, required when invoking them.
   exampleConfig:
     privateKey: "0x5e156e6df00db6983908d755cfbad3eaa49e3d4bbab50eef33adc01dce78ace9"
 
