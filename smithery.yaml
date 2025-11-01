@@ -1,0 +1,26 @@
+runtime: "container"
+
+startCommand:
+  # For Smithery hosted deployment (HTTP/SSE transport)
+  type: http
+  configSchema:
+    type: object
+    required:
+      - privateKey
+    properties:
+      privateKey:
+        type: string
+        description: Your dedicated wallet's private key for x402 payments (with 0x prefix)
+  exampleConfig:
+    privateKey: "0x5e156e6df00db6983908d755cfbad3eaa49e3d4bbab50eef33adc01dce78ace9"
+
+# Configuration for local STDIO deployment:
+# docker run -i --rm -e PRIVATE_KEY=0x... ghcr.io/sally-labs/sally-mcp
+
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
+
+env:
+  NODE_ENV: "production"
+  TRANSPORT_MODE: "http"
