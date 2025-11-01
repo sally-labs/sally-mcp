@@ -34,7 +34,7 @@ export const server = new McpServer({
 });
 
 // Add an addition tool
-server.tool('get-weather', 'Get example weather data', {}, async () => {
+server.tool('get-weather', 'Get example weather data (requires privateKey configuration)', {}, async () => {
   if (!api) {
     return {
       content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
@@ -61,7 +61,7 @@ server.tool('get-weather', 'Get example weather data', {}, async () => {
 
 server.tool(
   'chat-with-sally',
-  'Chat with Sally to talk about metabolic health',
+  'Chat with Sally to talk about metabolic health (requires privateKey configuration)',
   {
     message: z.string().describe('The message to send to Sally'),
   },
@@ -107,41 +107,50 @@ if (transportMode === 'http') {
   });
 
   app.post('/mcp', async (req, res) => {
-    // Extract privateKey from query parameters or request body
+    // Extract privateKey from query parameters or request body (optional for scanning)
     let privateKeyStr = (req.query.privateKey as string) || (req.body?.privateKey as string);
 
     console.log('Received /mcp request with privateKey:', privateKeyStr ? 'present' : 'missing');
 
-    if (!privateKeyStr) {
-      res.status(400).json({ error: 'Missing privateKey in query or body parameters' });
-      return;
-    }
+    // If privateKey is provided, validate and initialize API client
+    if (privateKeyStr) {
+      // Validate hex format: must start with 0x and be 66 characters (0x + 64 hex digits)
+      if (!privateKeyStr.startsWith('0x') || privateKeyStr.length !== 66) {
+        console.log('Invalid privateKey format:', privateKeyStr);
+        res.status(400).json({
+          error: 'Invalid privateKey format',
+          details: 'Private key must start with 0x and be 66 characters long (0x + 64 hex digits)'
+        });
+        return;
+      }
 
-    // Validate hex format: must start with 0x and be 66 characters (0x + 64 hex digits)
-    if (!privateKeyStr.startsWith('0x') || privateKeyStr.length !== 66) {
-      res.status(400).json({
-        error: 'Invalid privateKey format',
-        details: 'Private key must start with 0x and be 66 characters long (0x + 64 hex digits)'
-      });
-      return;
+      try {
+        // Cast to Hex after validation
+        const privateKey = privateKeyStr as Hex;
+
+        // Create API client with the provided privateKey
+        const account = privateKeyToAccount(privateKey);
+        api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
+
+        console.log('Successfully initialized API client with provided privateKey');
+      } catch (error: any) {
+        console.error('Failed to initialize API client:', error);
+        res.status(500).json({ error: 'Failed to initialize API client', details: error.message });
+        return;
+      }
+    } else {
+      console.log('No privateKey provided - tools will require credentials when invoked');
+      // Allow connection without API client for tool discovery/scanning
+      api = undefined as any;
     }
 
     try {
-      // Cast to Hex after validation
-      const privateKey = privateKeyStr as Hex;
-
-      // Create API client with the provided privateKey
-      const account = privateKeyToAccount(privateKey);
-      api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
-
-      console.log('Successfully initialized API client');
-
-      // Connect the transport
+      // Connect the transport (works with or without API client)
       const transport = new SSEServerTransport('/mcp', res);
       await server.connect(transport);
     } catch (error: any) {
-      console.error('Failed to initialize MCP connection:', error);
-      res.status(500).json({ error: 'Failed to initialize connection', details: error.message });
+      console.error('Failed to connect MCP transport:', error);
+      res.status(500).json({ error: 'Failed to connect transport', details: error.message });
     }
   });
 
