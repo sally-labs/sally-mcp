@@ -10,14 +10,19 @@ import { z } from 'zod';
 config();
 
 const privateKey = process.env.PRIVATE_KEY as Hex;
+const resourceServerUrl = process.env.RESOURCE_SERVER_URL;
 
 if (!privateKey) {
   throw new Error('Missing private keys');
 }
 
+if (!resourceServerUrl) {
+  throw new Error('Missing RESOURCE_SERVER_URL');
+}
+
 const account = privateKeyToAccount(privateKey);
 
-const api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
+const api = withPaymentInterceptor(axios.create({ baseURL: resourceServerUrl }), account);
 
 // Create an MCP server
 export const server = new McpServer({
