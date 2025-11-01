@@ -1,7 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import axios from 'axios';
 import { config } from 'dotenv';
+import express from 'express';
 import type { Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { withPaymentInterceptor } from 'x402-axios';
@@ -10,19 +12,16 @@ import { z } from 'zod';
 config();
 
 const privateKey = process.env.PRIVATE_KEY as Hex;
-const resourceServerUrl = process.env.RESOURCE_SERVER_URL;
+const transportMode = process.env.TRANSPORT_MODE || 'stdio';
 
 if (!privateKey) {
   throw new Error('Missing private keys');
 }
 
-if (!resourceServerUrl) {
-  throw new Error('Missing RESOURCE_SERVER_URL');
-}
-
 const account = privateKeyToAccount(privateKey);
 
-const api = withPaymentInterceptor(axios.create({ baseURL: resourceServerUrl }), account);
+// Sally API endpoint - hardcoded for simplicity
+const api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
 
 // Create an MCP server
 export const server = new McpServer({
@@ -77,5 +76,26 @@ server.tool(
   },
 );
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+// Connect with appropriate transport based on mode
+if (transportMode === 'http') {
+  // HTTP/SSE transport for Smithery hosted deployment
+  const app = express();
+  const port = process.env.PORT || 8081;
+
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok' });
+  });
+
+  app.post('/mcp', async (req, res) => {
+    const transport = new SSEServerTransport('/mcp', res);
+    await server.connect(transport);
+  });
+
+  app.listen(port, () => {
+    console.log(`Sally MCP server listening on port ${port}`);
+  });
+} else {
+  // STDIO transport for local Smithery CLI deployment
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}

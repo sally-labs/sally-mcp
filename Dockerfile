@@ -21,7 +21,10 @@ RUN pnpm run build
 
 # Set environment variables that will be overridden by Smithery
 ENV PRIVATE_KEY=""
-ENV RESOURCE_SERVER_URL=""
+ENV TRANSPORT_MODE="http"
+
+# Expose port for HTTP/SSE transport (Smithery hosted mode)
+EXPOSE 8081
 
 # Run the production build
 CMD ["node", "dist/index.js"]

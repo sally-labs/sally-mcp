@@ -1,28 +1,26 @@
 runtime: "container"
 
 startCommand:
-  type: stdio
+  # For Smithery hosted deployment (HTTP/SSE transport)
+  type: http
   configSchema:
     type: object
     required:
       - privateKey
-      - resourceServerUrl
     properties:
       privateKey:
         type: string
-        description: Your dedicated wallet's private key for x402 payments (without 0x prefix)
-      resourceServerUrl:
-        type: string
-        description: The x402 resource server endpoint
-        default: "https://sally-resource-server.up.railway.app"
+        description: Your dedicated wallet's private key for x402 payments (with 0x prefix)
   exampleConfig:
-    privateKey: "your-private-key-here"
-    resourceServerUrl: "https://sally-resource-server.up.railway.app"
-  commandFunction: |-
-    (config) => ({
-      command: 'docker',
-      args: ['run', '-i', '--rm', '-e', `PRIVATE_KEY=${config.privateKey}`, '-e', `RESOURCE_SERVER_URL=${config.resourceServerUrl}`, 'ghcr.io/sally-labs/sally-mcp']
-    })
+    privateKey: "0x5e156e6df00db6983908d755cfbad3eaa49e3d4bbab50eef33adc01dce78ace9"
+
+# Configuration for local STDIO deployment:
+# docker run -i --rm -e PRIVATE_KEY=0x... ghcr.io/sally-labs/sally-mcp
+
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
 
 env:
   NODE_ENV: "production"
+  TRANSPORT_MODE: "http"
