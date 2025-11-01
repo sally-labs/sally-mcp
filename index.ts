@@ -98,23 +98,43 @@ if (transportMode === 'http') {
   const app = express();
   const port = process.env.PORT || 8081;
 
+  // Add middleware for parsing JSON and URL-encoded data
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
   app.post('/mcp', async (req, res) => {
-    // Extract privateKey from query parameters
-    const privateKey = req.query.privateKey as Hex;
+    // Extract privateKey from query parameters or request body
+    let privateKeyStr = (req.query.privateKey as string) || (req.body?.privateKey as string);
 
-    if (!privateKey) {
-      res.status(400).json({ error: 'Missing privateKey query parameter' });
+    console.log('Received /mcp request with privateKey:', privateKeyStr ? 'present' : 'missing');
+
+    if (!privateKeyStr) {
+      res.status(400).json({ error: 'Missing privateKey in query or body parameters' });
+      return;
+    }
+
+    // Validate hex format: must start with 0x and be 66 characters (0x + 64 hex digits)
+    if (!privateKeyStr.startsWith('0x') || privateKeyStr.length !== 66) {
+      res.status(400).json({
+        error: 'Invalid privateKey format',
+        details: 'Private key must start with 0x and be 66 characters long (0x + 64 hex digits)'
+      });
       return;
     }
 
     try {
+      // Cast to Hex after validation
+      const privateKey = privateKeyStr as Hex;
+
       // Create API client with the provided privateKey
       const account = privateKeyToAccount(privateKey);
       api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
+
+      console.log('Successfully initialized API client');
 
       // Connect the transport
       const transport = new SSEServerTransport('/mcp', res);
