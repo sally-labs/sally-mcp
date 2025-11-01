@@ -11,17 +11,21 @@ import { z } from 'zod';
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex;
 const transportMode = process.env.TRANSPORT_MODE || 'stdio';
 
-if (!privateKey) {
-  throw new Error('Missing private keys');
+// In HTTP mode, API client will be created per-request from query params
+// In STDIO mode, use environment variable
+let api: ReturnType<typeof withPaymentInterceptor>;
+
+if (transportMode === 'stdio') {
+  const privateKey = process.env.PRIVATE_KEY as Hex;
+  if (!privateKey) {
+    throw new Error('Missing PRIVATE_KEY environment variable for STDIO mode');
+  }
+  const account = privateKeyToAccount(privateKey);
+  api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
 }
-
-const account = privateKeyToAccount(privateKey);
-
-// Sally API endpoint - hardcoded for simplicity
-const api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
+// In HTTP mode, api will be set when handling requests
 
 // Create an MCP server
 export const server = new McpServer({
@@ -31,6 +35,12 @@ export const server = new McpServer({
 
 // Add an addition tool
 server.tool('get-weather', 'Get example weather data', {}, async () => {
+  if (!api) {
+    return {
+      content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
+    };
+  }
+
   try {
     const res = await api.get('/weather');
     return {
@@ -56,6 +66,12 @@ server.tool(
     message: z.string().describe('The message to send to Sally'),
   },
   async (args) => {
+    if (!api) {
+      return {
+        content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
+      };
+    }
+
     const { message } = args;
     try {
       const res = await api.post('/chats', { message });
@@ -87,8 +103,26 @@ if (transportMode === 'http') {
   });
 
   app.post('/mcp', async (req, res) => {
-    const transport = new SSEServerTransport('/mcp', res);
-    await server.connect(transport);
+    // Extract privateKey from query parameters
+    const privateKey = req.query.privateKey as Hex;
+
+    if (!privateKey) {
+      res.status(400).json({ error: 'Missing privateKey query parameter' });
+      return;
+    }
+
+    try {
+      // Create API client with the provided privateKey
+      const account = privateKeyToAccount(privateKey);
+      api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
+
+      // Connect the transport
+      const transport = new SSEServerTransport('/mcp', res);
+      await server.connect(transport);
+    } catch (error: any) {
+      console.error('Failed to initialize MCP connection:', error);
+      res.status(500).json({ error: 'Failed to initialize connection', details: error.message });
+    }
   });
 
   app.listen(port, () => {
