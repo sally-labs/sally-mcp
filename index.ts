@@ -157,43 +157,43 @@ if (transportMode === 'http') {
     // If privateKey is provided, validate and initialize API client for this session
     if (privateKeyStr) {
       // Validate hex format: must start with 0x and be 66 characters (0x + 64 hex digits)
-      if (!privateKeyStr.startsWith('0x') || privateKeyStr.length !== 66) {
-        console.log('Invalid privateKey format:', privateKeyStr);
-        res.status(400).json({
-          error: 'Invalid privateKey format',
-          details: 'Private key must start with 0x and be 66 characters long (0x + 64 hex digits)'
-        });
-        return;
-      }
+      const isValidFormat = privateKeyStr.startsWith('0x') && privateKeyStr.length === 66;
 
-      try {
-        // Cast to Hex after validation
-        const privateKey = privateKeyStr as Hex;
+      if (!isValidFormat) {
+        console.log('Invalid or incomplete privateKey provided - proceeding without API client');
+        console.log(`PrivateKey validation failed: length=${privateKeyStr.length}, starts_with_0x=${privateKeyStr.startsWith('0x')}`);
+        // Don't fail the request - just continue without API client
+        // Tools will return appropriate errors when invoked without credentials
+      } else {
+        try {
+          // Cast to Hex after validation
+          const privateKey = privateKeyStr as Hex;
 
-        // Create API client with the provided privateKey
-        const account = privateKeyToAccount(privateKey);
-        const apiClient = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
+          // Create API client with the provided privateKey
+          const account = privateKeyToAccount(privateKey);
+          const apiClient = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
 
-        // Extract session ID from response header (set by transport after handling request)
-        // We'll store the client temporarily and the session callback will pick it up
-        // Note: Session ID is generated during handleRequest, so we need a temporary storage
-        const tempApiClient = apiClient;
+          // Extract session ID from response header (set by transport after handling request)
+          // We'll store the client temporarily and the session callback will pick it up
+          // Note: Session ID is generated during handleRequest, so we need a temporary storage
+          const tempApiClient = apiClient;
 
-        // Intercept response to extract session ID and store API client
-        const originalSetHeader = res.setHeader.bind(res);
-        res.setHeader = function(name: string, value: string | number | readonly string[]) {
-          if (name.toLowerCase() === 'mcp-session-id' && typeof value === 'string') {
-            console.log(`Storing API client for session: ${value}`);
-            apiClients.set(value, tempApiClient);
-          }
-          return originalSetHeader(name, value);
-        };
+          // Intercept response to extract session ID and store API client
+          const originalSetHeader = res.setHeader.bind(res);
+          res.setHeader = function(name: string, value: string | number | readonly string[]) {
+            if (name.toLowerCase() === 'mcp-session-id' && typeof value === 'string') {
+              console.log(`Storing API client for session: ${value}`);
+              apiClients.set(value, tempApiClient);
+            }
+            return originalSetHeader(name, value);
+          };
 
-        console.log('Successfully created API client with provided privateKey');
-      } catch (error: any) {
-        console.error('Failed to initialize API client:', error);
-        res.status(500).json({ error: 'Failed to initialize API client', details: error.message });
-        return;
+          console.log('Successfully created API client with provided privateKey');
+        } catch (error: any) {
+          console.error('Failed to initialize API client:', error);
+          // Log error but don't fail the request - allow scan to proceed
+          console.log('Continuing without API client - tools will require valid credentials');
+        }
       }
     } else {
       console.log('No privateKey provided - tools will require credentials when invoked');
