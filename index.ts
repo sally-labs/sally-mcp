@@ -1,7 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import axios from 'axios';
+import crypto from 'crypto';
 import { config } from 'dotenv';
 import express from 'express';
 import type { Hex } from 'viem';
@@ -94,9 +95,17 @@ server.tool(
 
 // Connect with appropriate transport based on mode
 if (transportMode === 'http') {
-  // HTTP/SSE transport for Smithery hosted deployment
+  // HTTP transport for Smithery hosted deployment
   const app = express();
   const port = process.env.PORT || 8081;
+
+  // Create a single transport instance for Streamable HTTP
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomUUID(),
+  });
+
+  // Connect the server to the transport once
+  await server.connect(transport);
 
   // Add middleware for parsing JSON and URL-encoded data
   app.use(express.json());
@@ -106,11 +115,14 @@ if (transportMode === 'http') {
     res.json({ status: 'ok' });
   });
 
-  app.post('/mcp', async (req, res) => {
+  // Handle all HTTP methods on /mcp endpoint
+  app.all('/mcp', async (req, res) => {
+    console.log(`Received ${req.method} /mcp request`);
+
     // Extract privateKey from query parameters or request body (optional for scanning)
     let privateKeyStr = (req.query.privateKey as string) || (req.body?.privateKey as string);
 
-    console.log('Received /mcp request with privateKey:', privateKeyStr ? 'present' : 'missing');
+    console.log('Request with privateKey:', privateKeyStr ? 'present' : 'missing');
 
     // If privateKey is provided, validate and initialize API client
     if (privateKeyStr) {
@@ -145,12 +157,13 @@ if (transportMode === 'http') {
     }
 
     try {
-      // Connect the transport (works with or without API client)
-      const transport = new SSEServerTransport('/mcp', res);
-      await server.connect(transport);
+      // Let the transport handle the request (it manages GET, POST, DELETE internally)
+      await transport.handleRequest(req, res, req.body);
     } catch (error: any) {
-      console.error('Failed to connect MCP transport:', error);
-      res.status(500).json({ error: 'Failed to connect transport', details: error.message });
+      console.error('Failed to handle MCP request:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to handle request', details: error.message });
+      }
     }
   });
 
