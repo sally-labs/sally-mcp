@@ -28,54 +28,23 @@ if (transportMode === 'stdio') {
 }
 // In HTTP mode, api will be set when handling requests
 
-// Create an MCP server
-export const server = new McpServer({
-  name: 'x402 MCP Sally Server',
-  version: '1.0.0',
-});
+// Create an MCP server factory function
+const createServer = () => {
+  const server = new McpServer({
+    name: 'x402 MCP Sally Server',
+    version: '1.0.0',
+  });
 
-// Add an addition tool
-server.tool('get-weather', 'Get example weather data (requires privateKey configuration)', {}, async () => {
-  if (!api) {
-    return {
-      content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
-    };
-  }
-
-  try {
-    const res = await api.get('/weather');
-    return {
-      content: [{ type: 'text', text: JSON.stringify(res.data) }],
-    };
-  } catch (err: any) {
-    console.error(err);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to fetch weather data. Error: ${err.response?.data?.message || err.message}`,
-        },
-      ],
-    };
-  }
-});
-
-server.tool(
-  'chat-with-sally',
-  'Chat with Sally to talk about metabolic health (requires privateKey configuration)',
-  {
-    message: z.string().describe('The message to send to Sally'),
-  },
-  async (args) => {
+  // Add tools to the server
+  server.tool('get-weather', 'Get example weather data (requires privateKey configuration)', {}, async () => {
     if (!api) {
       return {
         content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
       };
     }
 
-    const { message } = args;
     try {
-      const res = await api.post('/chats', { message });
+      const res = await api.get('/weather');
       return {
         content: [{ type: 'text', text: JSON.stringify(res.data) }],
       };
@@ -85,27 +54,57 @@ server.tool(
         content: [
           {
             type: 'text',
-            text: `Failed to chat with Sally. Error: ${err.response?.data?.message || err.message}`,
+            text: `Failed to fetch weather data. Error: ${err.response?.data?.message || err.message}`,
           },
         ],
       };
     }
-  },
-);
+  });
+
+  server.tool(
+    'chat-with-sally',
+    'Chat with Sally to talk about metabolic health (requires privateKey configuration)',
+    {
+      message: z.string().describe('The message to send to Sally'),
+    },
+    async (args) => {
+      if (!api) {
+        return {
+          content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
+        };
+      }
+
+      const { message } = args;
+      try {
+        const res = await api.post('/chats', { message });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(res.data) }],
+        };
+      } catch (err: any) {
+        console.error(err);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to chat with Sally. Error: ${err.response?.data?.message || err.message}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  return server;
+};
+
+// For STDIO mode, create a single server instance
+export const server = createServer();
 
 // Connect with appropriate transport based on mode
 if (transportMode === 'http') {
   // HTTP transport for Smithery hosted deployment
   const app = express();
   const port = process.env.PORT || 8081;
-
-  // Create a single transport instance for Streamable HTTP
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
-  });
-
-  // Connect the server to the transport once
-  await server.connect(transport);
 
   // Add middleware for parsing JSON and URL-encoded data
   app.use(express.json());
@@ -157,8 +156,18 @@ if (transportMode === 'http') {
     }
 
     try {
-      // Let the transport handle the request (it manages GET, POST, DELETE internally)
-      await transport.handleRequest(req, res, req.body);
+      // Create a new server and transport for each request
+      // This allows handling multiple initialization handshakes
+      const requestServer = createServer();
+      const requestTransport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // Stateless mode
+        enableJsonResponse: true, // Use JSON responses instead of SSE streams
+      });
+
+      await requestServer.connect(requestTransport);
+
+      // Let the transport handle the request
+      await requestTransport.handleRequest(req, res, req.body);
     } catch (error: any) {
       console.error('Failed to handle MCP request:', error);
       if (!res.headersSent) {
