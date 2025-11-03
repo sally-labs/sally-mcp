@@ -112,37 +112,12 @@ if (transportMode === 'http') {
   const app = express();
   const port = process.env.PORT || 8081;
 
-  // Store server instances per session
-  const serverInstances = new Map<string, McpServer>();
-
   // Add middleware for parsing JSON and URL-encoded data
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
-  });
-
-  // Create single transport with session management
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(), // Stateful mode with session tracking
-    enableJsonResponse: true, // Use JSON responses instead of SSE streams
-    onsessioninitialized: async (sessionId: string) => {
-      console.log(`Session initialized: ${sessionId}`);
-
-      // Create server instance for this session
-      const sessionServer = createServer(() => apiClients.get(sessionId));
-      serverInstances.set(sessionId, sessionServer);
-
-      // Connect the session server to the transport
-      await sessionServer.connect(transport);
-    },
-    onsessionclosed: (sessionId: string) => {
-      console.log(`Session closed: ${sessionId}`);
-      // Clean up session data
-      apiClients.delete(sessionId);
-      serverInstances.delete(sessionId);
-    },
   });
 
   // Handle all HTTP methods on /mcp endpoint
@@ -154,7 +129,9 @@ if (transportMode === 'http') {
 
     console.log('Request with privateKey:', privateKeyStr ? 'present' : 'missing');
 
-    // If privateKey is provided, validate and initialize API client for this session
+    // Initialize API client for this request if valid privateKey provided
+    let requestApiClient: ApiClient | undefined;
+
     if (privateKeyStr) {
       // Validate hex format: must start with 0x and be 66 characters (0x + 64 hex digits)
       const isValidFormat = privateKeyStr.startsWith('0x') && privateKeyStr.length === 66;
@@ -169,24 +146,9 @@ if (transportMode === 'http') {
           // Cast to Hex after validation
           const privateKey = privateKeyStr as Hex;
 
-          // Create API client with the provided privateKey
+          // Create API client with the provided privateKey for this request
           const account = privateKeyToAccount(privateKey);
-          const apiClient = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
-
-          // Extract session ID from response header (set by transport after handling request)
-          // We'll store the client temporarily and the session callback will pick it up
-          // Note: Session ID is generated during handleRequest, so we need a temporary storage
-          const tempApiClient = apiClient;
-
-          // Intercept response to extract session ID and store API client
-          const originalSetHeader = res.setHeader.bind(res);
-          res.setHeader = function(name: string, value: string | number | readonly string[]) {
-            if (name.toLowerCase() === 'mcp-session-id' && typeof value === 'string') {
-              console.log(`Storing API client for session: ${value}`);
-              apiClients.set(value, tempApiClient);
-            }
-            return originalSetHeader(name, value);
-          };
+          requestApiClient = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
 
           console.log('Successfully created API client with provided privateKey');
         } catch (error: any) {
@@ -200,9 +162,18 @@ if (transportMode === 'http') {
     }
 
     try {
+      // Create a new server and transport for each request
+      // Pass the API client directly via closure
+      const requestServer = createServer(() => requestApiClient);
+      const requestTransport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // Stateless mode
+        enableJsonResponse: true, // Use JSON responses instead of SSE streams
+      });
+
+      await requestServer.connect(requestTransport);
+
       // Let the transport handle the request
-      // Transport will generate session ID and call onsessioninitialized callback
-      await transport.handleRequest(req, res, req.body);
+      await requestTransport.handleRequest(req, res, req.body);
     } catch (error: any) {
       console.error('Failed to handle MCP request:', error);
       if (!res.headersSent) {
