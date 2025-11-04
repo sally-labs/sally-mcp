@@ -31,6 +31,146 @@ if (transportMode === 'stdio') {
   api = withPaymentInterceptor(axios.create({ baseURL: 'https://api-x402.asksally.xyz' }), account);
 }
 
+// Helper function to set up prompts
+const setupPrompts = (server: McpServer) => {
+  // Prompt 1: Ask Sally about metabolic health
+  server.prompt(
+    'ask-sally-metabolic',
+    'Generate a well-formed question for Sally about metabolic health',
+    {
+      topic: z.string().describe('The metabolic health topic to ask about'),
+    },
+    async (args) => {
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Please use the chat-with-sally tool to ask: "${args.topic}"`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  // Prompt 2: General chat with Sally
+  server.prompt(
+    'ask-sally-general',
+    'Start a general conversation with Sally',
+    async () => {
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: 'Please use the chat-with-sally tool to start a conversation about health and wellness.',
+            },
+          },
+        ],
+      };
+    },
+  );
+};
+
+// Helper function to set up resources
+const setupResources = (server: McpServer, getApiClient: () => ApiClient | undefined) => {
+  // Resource 1: Server configuration info
+  server.resource(
+    'server-config',
+    'sally://config/info',
+    {
+      description: 'Information about the Sally MCP server configuration and status',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const apiClient = getApiClient();
+      return {
+        contents: [
+          {
+            uri: 'sally://config/info',
+            mimeType: 'application/json',
+            text: JSON.stringify(
+              {
+                serverName: 'x402 MCP Sally Server',
+                version: '1.0.0',
+                apiConnected: apiClient !== undefined,
+                apiEndpoint: 'https://api-x402.asksally.xyz',
+                availableTools: ['chat-with-sally'],
+                transportMode: process.env.TRANSPORT_MODE || 'stdio',
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 2: Sally API documentation
+  server.resource(
+    'sally-docs',
+    'sally://docs/api',
+    {
+      description: 'Documentation for chatting with Sally and the x402 payment protocol',
+      mimeType: 'text/markdown',
+    },
+    async () => {
+      return {
+        contents: [
+          {
+            uri: 'sally://docs/api',
+            mimeType: 'text/markdown',
+            text: `# Sally MCP Server Documentation
+
+## Overview
+This MCP server provides access to Sally, an AI assistant specializing in metabolic health, through the x402 blockchain-based payment protocol.
+
+## Available Tools
+
+### chat-with-sally
+Chat with Sally about metabolic health topics.
+
+**Parameters:**
+- \`message\` (string, required): Your question or message for Sally
+
+**Requirements:** Valid privateKey configuration
+
+**Returns:** Sally's response in JSON format
+
+**Example topics:**
+- Metabolic health and wellness
+- Nutrition advice
+- Exercise recommendations
+- Health goal setting
+
+## x402 Payment Protocol
+All interactions with Sally use the x402 protocol for micropayments. Each API call is automatically paid for using your configured wallet.
+
+## Security Best Practices
+- Always use a dedicated wallet for MCP interactions
+- Never use your main wallet's private key
+- Keep your private key secure and never share it
+- Monitor your wallet balance regularly
+
+## Getting Started
+1. Configure your privateKey in the MCP client settings
+2. Use the chat-with-sally tool to start a conversation
+3. Ask Sally about metabolic health, nutrition, or wellness topics
+
+## Support
+For issues or questions about Sally, visit the Sally Labs documentation.
+`,
+          },
+        ],
+      };
+    },
+  );
+};
+
 // Create an MCP server factory function
 // getApiClient: function to retrieve API client for the current session
 const createServer = (getApiClient: () => ApiClient | undefined) => {
@@ -40,37 +180,17 @@ const createServer = (getApiClient: () => ApiClient | undefined) => {
   });
 
   // Add tools to the server
-  server.tool('get-weather', 'Get example weather data (requires privateKey configuration)', {}, async () => {
-    const apiClient = getApiClient();
-    if (!apiClient) {
-      return {
-        content: [{ type: 'text', text: 'Error: API client not initialized. Please provide a valid privateKey.' }],
-      };
-    }
-
-    try {
-      const res = await apiClient.get('/weather');
-      return {
-        content: [{ type: 'text', text: JSON.stringify(res.data) }],
-      };
-    } catch (err: any) {
-      console.error(err);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to fetch weather data. Error: ${err.response?.data?.message || err.message}`,
-          },
-        ],
-      };
-    }
-  });
-
   server.tool(
     'chat-with-sally',
     'Chat with Sally to talk about metabolic health (requires privateKey configuration)',
     {
       message: z.string().describe('The message to send to Sally'),
+    },
+    {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
     },
     async (args) => {
       const apiClient = getApiClient();
@@ -99,6 +219,10 @@ const createServer = (getApiClient: () => ApiClient | undefined) => {
       }
     },
   );
+
+  // Set up prompts and resources
+  setupPrompts(server);
+  setupResources(server, getApiClient);
 
   return server;
 };
