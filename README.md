@@ -113,7 +113,7 @@ For Claude Desktop
     ],
     "env": {
       "PRIVATE_KEY": "{YOUR_WALLET_PRIVATE_KEY}",
-      "RESOURCE_SERVER_URL": "https://sbx-x402.sapa-ai.com"
+      "RESOURCE_SERVER_URL": "https://api-x402.asksally.xyz"
     }
   }
 }
