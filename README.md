@@ -1,5 +1,7 @@
 # Sally MCP Server with x402
 
+[![smithery badge](https://smithery.ai/badge/@sally-labs/sally-ai-mcp)](https://smithery.ai/server/@sally-labs/sally-ai-mcp)
+
 An MCP (Model Context Protocol) server that enables MCP-compatible clients (such as Claude Desktop, Cursor, and others) to interact with Sally (AskSally) using x402 blockchain-based payments. This integration allows you to access Sally's capabilities directly through your preferred MCP client.
 
 ## 🔒 Security First
