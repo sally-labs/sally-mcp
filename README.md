@@ -171,6 +171,19 @@ pnpm build
 # Run the server
 node dist/index.js
 ```
+### Option C: Add Server for Clawdbot Use
+```bash
+# Install Smithery CLI
+npm install -g @smithery/cli
+
+# Login
+smithery auth login
+
+# Establish MCP Connection to Ask Sally via Smithery
+smithery mcp add "sally-labs/sally-ai-mcp?privateKey=0xYOUR_PRIVATE_KEY" \
+  --id sally-ai-mcp \
+  --force
+```
 
 ---
 
